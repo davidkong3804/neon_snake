@@ -1,0 +1,21 @@
+{
+  "name": "web-snake-game",
+  "version": "1.0.0",
+  "description": "A premium, modern neon-themed Snake game with a Node.js backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "snake",
+    "nodejs",
+    "express",
+    "game",
+    "canvas"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

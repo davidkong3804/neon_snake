@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="一個現代、酷炫霓虹風格的 Node.js 網頁版貪食蛇遊戲。包含豐富的視覺特效、多種食物、音效與積分排行榜！">
+  <title>CYBER SNAKE // 霓虹科幻貪食蛇</title>
+  <!-- Google Fonts for futuristic look -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="stars-bg"></div>
+  <main class="game-container" id="game-container">
+    <header class="game-header">
+      <h1 class="logo-text">CYBER<span class="neon-text">SNAKE</span></h1>
+      <p class="tagline">// NEON-CYBERPUNK ARCADE EDITION</p>
+    </header>
+
+    <div class="game-layout">
+      <!-- Left Side: Canvas Game Board -->
+      <section class="board-panel glass-card">
+        <div class="score-bar">
+          <div class="score-item">
+            <span class="label">SCORE</span>
+            <span class="value" id="current-score">000</span>
+          </div>
+          <div class="score-item">
+            <span class="label">HIGH SCORE</span>
+            <span class="value" id="best-score">000</span>
+          </div>
+          <div class="score-item">
+            <span class="label">SPEED</span>
+            <span class="value" id="current-speed">1x</span>
+          </div>
+        </div>
+        
+        <div class="canvas-wrapper" id="canvas-wrapper">
+          <canvas id="game-canvas" width="500" height="500"></canvas>
+          <div class="start-overlay" id="start-overlay">
+            <div class="overlay-content">
+              <span class="overlay-icon">🎮</span>
+              <h2>CYBER SYSTEM READY</h2>
+              <p>按下 [空白鍵] 或點擊下方按鈕啟動</p>
+              <button class="btn btn-primary btn-large" id="start-overlay-btn" id="btn-start-overlay">啟動系統</button>
+            </div>
+          </div>
+          <div class="pause-overlay" id="pause-overlay">
+            <div class="overlay-content">
+              <h2>系統暫停中</h2>
+              <p>按下 [ESC] 或 [空白鍵] 恢復連線</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="keyboard-hint">
+          <p>控制方式：使用 <span>W, A, S, D</span> 或 <span>方向鍵</span> 移動 | <span>空白鍵</span> 暫停</p>
+        </div>
+      </section>
+
+      <!-- Right Side: Sidebar Controls and Leaderboard -->
+      <aside class="sidebar-panel">
+        <!-- Control Panel -->
+        <section class="control-panel glass-card">
+          <h2 class="panel-title">// 系統控制面板</h2>
+          <div class="btn-group">
+            <button class="btn btn-primary" id="btn-start">開始遊戲</button>
+            <button class="btn btn-secondary" id="btn-pause" disabled>暫停</button>
+          </div>
+
+          <div style="margin-bottom: 1.2rem;">
+            <button class="btn btn-secondary" id="btn-ai" style="width: 100%; border-color: var(--neon-purple); color: var(--neon-purple);">🤖 啟動 AI 自動導航</button>
+          </div>
+
+          <div class="setting-item">
+            <label for="select-difficulty">難度速度</label>
+            <select id="select-difficulty" class="custom-select">
+              <option value="easy">休閒 (Easy)</option>
+              <option value="normal" selected>正常 (Normal)</option>
+              <option value="hard">狂暴 (Hard)</option>
+              <option value="insane">超載 (Insane)</option>
+            </select>
+          </div>
+
+          <div class="setting-item">
+            <label for="select-mode">邊界模式</label>
+            <select id="select-mode" class="custom-select">
+              <option value="classic" selected>經典 (撞牆即死)</option>
+              <option value="wrap">穿越 (穿牆傳送)</option>
+            </select>
+          </div>
+
+          <div class="setting-item">
+            <label>外觀塗裝 (Skins)</label>
+            <div class="skin-selector">
+              <button class="skin-swatch active" data-skin="Neon Green" title="霓虹綠" style="--skin-color: #39ff14;"></button>
+              <button class="skin-swatch" data-skin="Cyberpunk Gradient" title="科技漸層" style="--skin-color: linear-gradient(45deg, #ff007f, #7f00ff);"></button>
+              <button class="skin-swatch" data-skin="Electric Blue" title="閃電藍" style="--skin-color: #00e5ff;"></button>
+              <button class="skin-swatch" data-skin="Rainbow" title="彩虹霓虹" style="--skin-color: linear-gradient(45deg, red, orange, yellow, green, blue, violet);"></button>
+              <button class="skin-swatch" data-skin="Gold Rush" title="黃金脈衝" style="--skin-color: #ffd700;"></button>
+            </div>
+          </div>
+
+          <div class="audio-toggle-container">
+            <span class="audio-label">系統音效</span>
+            <button class="audio-btn" id="btn-audio" aria-label="切換音效">
+              <span class="audio-icon">🔊</span> On
+            </button>
+          </div>
+        </section>
+
+        <!-- Leaderboard -->
+        <section class="leaderboard-panel glass-card">
+          <h2 class="panel-title">// 區域網路排行榜</h2>
+          <div class="leaderboard-container">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th scope="col">排名</th>
+                  <th scope="col">玩家</th>
+                  <th scope="col">塗裝</th>
+                  <th scope="col">分數</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-body">
+                <tr>
+                  <td colspan="4" class="loading-text">正在載入排行榜資料...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <!-- Mobile Virtual Joystick (visible on touch screens) -->
+    <section class="mobile-controls" aria-label="行動端方向控制">
+      <div class="joystick-grid">
+        <button class="joy-btn joy-up" id="joy-up" aria-label="向上">▲</button>
+        <button class="joy-btn joy-left" id="joy-left" aria-label="向左">◀</button>
+        <button class="joy-btn joy-empty" disabled></button>
+        <button class="joy-btn joy-right" id="joy-right" aria-label="向右">▶</button>
+        <button class="joy-btn joy-down" id="joy-down" aria-label="向下">▼</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Game Over Modal overlay -->
+  <div class="modal-backdrop" id="gameover-modal">
+    <div class="modal-content glass-card">
+      <div class="neon-alert-border"></div>
+      <h2 class="modal-title neon-pulse">// SYSTEM CRASHED //</h2>
+      <p class="modal-subtitle">核心已被摧毀，貪食蛇終止運作。</p>
+      
+      <div class="stats-summary">
+        <div class="stat-box">
+          <span class="stat-label">最終得分</span>
+          <span class="stat-val" id="modal-final-score">000</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">存活時間</span>
+          <span class="stat-val" id="modal-time">00:00</span>
+        </div>
+      </div>
+
+      <div class="high-score-form" id="high-score-form">
+        <h3>🏆 恭喜進入系統排行榜！</h3>
+        <p>請輸入您的代號以將分數登錄於伺服器主機：</p>
+        <div class="input-group">
+          <input type="text" id="player-name" placeholder="輸入玩家代號 (15字內)" maxlength="15">
+          <button class="btn btn-primary" id="btn-submit-score">上傳分數</button>
+        </div>
+        <p class="form-error" id="form-error"></p>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="btn-modal-restart">重啟系統 (Restart)</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="system-footer">
+    <p>Antigravity Cyber Systems &copy; 2026 // Local Host Server 8000</p>
+  </footer>
+
+  <script src="game.js"></script>
+</body>
+</html>
