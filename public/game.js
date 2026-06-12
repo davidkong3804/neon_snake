@@ -1126,10 +1126,11 @@ function findSmartAutopilotPath(start, target, H_idx, T_idx, N) {
       const A_idx = cycleIndex[n.x][n.y];
       const distFromHtoA = (A_idx - H_idx + N) % N;
 
-      // Safe shortcut condition: shortcut must not skip beyond the tail segment
-      // The default cycle step is also always allowed.
+      // Safe shortcut condition: shortcut must not skip beyond the tail segment,
+      // and it must strictly move forward in the cycle index (to prevent backward loops).
       const isDefaultStep = A_idx === (H_idx + 1) % N;
-      if (distFromHtoA < distToTail || (isDefaultStep && distToTail === 1)) {
+      const isForward = A_idx > H_idx;
+      if ((isForward && distFromHtoA < distToTail) || isDefaultStep) {
         visited.add(key);
         parent[key] = current;
         queue.push(n);
