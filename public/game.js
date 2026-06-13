@@ -3,8 +3,6 @@
 // Game Grid Settings
 const GRID_SIZE = 24;
 let CELL_SIZE = 20; // Will be computed on load/resize to match canvas size
-let cyclePath = []; // Hamiltonian cycle path
-let cycleIndex = []; // Hamiltonian cycle lookup table
 
 // Game States
 let snake = [];
@@ -56,8 +54,12 @@ const SKIN_PALETTES = {
     glow: '#39ff14',
     draw: (ctx, x, y, isHead, index, length) => {
       ctx.fillStyle = isHead ? '#39ff14' : '#1f990a';
-      ctx.shadowColor = '#39ff14';
-      ctx.shadowBlur = 10;
+      if (isHead) {
+        ctx.shadowColor = '#39ff14';
+        ctx.shadowBlur = 10;
+      } else {
+        ctx.shadowBlur = 0;
+      }
       drawRoundedRect(ctx, x, y, CELL_SIZE, CELL_SIZE, 4);
     }
   },
@@ -67,10 +69,13 @@ const SKIN_PALETTES = {
     glow: '#ff007f',
     draw: (ctx, x, y, isHead, index, length) => {
       const ratio = index / length;
-      // Interpolate color from pink (#ff007f) to purple (#7f00ff)
       ctx.fillStyle = isHead ? '#ff007f' : getGradientColor(ratio);
-      ctx.shadowColor = isHead ? '#ff007f' : '#7f00ff';
-      ctx.shadowBlur = 12;
+      if (isHead) {
+        ctx.shadowColor = '#ff007f';
+        ctx.shadowBlur = 12;
+      } else {
+        ctx.shadowBlur = 0;
+      }
       drawRoundedRect(ctx, x, y, CELL_SIZE, CELL_SIZE, 4);
     }
   },
@@ -80,8 +85,12 @@ const SKIN_PALETTES = {
     glow: '#00e5ff',
     draw: (ctx, x, y, isHead, index, length) => {
       ctx.fillStyle = isHead ? '#00e5ff' : '#00838f';
-      ctx.shadowColor = '#00e5ff';
-      ctx.shadowBlur = 10;
+      if (isHead) {
+        ctx.shadowColor = '#00e5ff';
+        ctx.shadowBlur = 10;
+      } else {
+        ctx.shadowBlur = 0;
+      }
       drawRoundedRect(ctx, x, y, CELL_SIZE, CELL_SIZE, 4);
     }
   },
@@ -92,8 +101,12 @@ const SKIN_PALETTES = {
     draw: (ctx, x, y, isHead, index, length) => {
       const hue = (index * 360 / Math.max(10, length) + (Date.now() / 15)) % 360;
       ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
-      ctx.shadowColor = `hsl(${hue}, 100%, 50%)`;
-      ctx.shadowBlur = 12;
+      if (isHead) {
+        ctx.shadowColor = `hsl(${hue}, 100%, 50%)`;
+        ctx.shadowBlur = 12;
+      } else {
+        ctx.shadowBlur = 0;
+      }
       drawRoundedRect(ctx, x, y, CELL_SIZE, CELL_SIZE, 4);
     }
   },
@@ -103,8 +116,12 @@ const SKIN_PALETTES = {
     glow: '#ffd700',
     draw: (ctx, x, y, isHead, index, length) => {
       ctx.fillStyle = isHead ? '#ffd700' : '#ffa000';
-      ctx.shadowColor = '#ffd700';
-      ctx.shadowBlur = 15;
+      if (isHead) {
+        ctx.shadowColor = '#ffd700';
+        ctx.shadowBlur = 15;
+      } else {
+        ctx.shadowBlur = 0;
+      }
       drawRoundedRect(ctx, x, y, CELL_SIZE, CELL_SIZE, 4);
     }
   }
@@ -443,8 +460,8 @@ function gameStep() {
     if (head.y >= GRID_SIZE) head.y = 0;
   }
 
-  // Check collision with self
-  if (snake.some(segment => segment.x === head.x && segment.y === head.y)) {
+  // Check collision with self (excluding tail segment since it moves out of the way this tick)
+  if (snake.slice(0, -1).some(segment => segment.x === head.x && segment.y === head.y)) {
     triggerGameOver();
     return;
   }
@@ -752,6 +769,36 @@ function togglePause() {
 }
 
 // API: Fetch local server scores
+// Helper: Get local scores from localStorage
+function getLocalScores() {
+  const scoresJSON = localStorage.getItem('cyber-snake-local-scores');
+  if (scoresJSON) {
+    try {
+      return JSON.parse(scoresJSON);
+    } catch (e) {
+      return [];
+    }
+  }
+  return [];
+}
+
+// Helper: Save local score
+function saveLocalScore(name, score, skin) {
+  const scores = getLocalScores();
+  scores.push({
+    name,
+    score,
+    skin,
+    date: new Date().toISOString()
+  });
+  // Sort descending by score, keep top 10
+  scores.sort((a, b) => b.score - a.score);
+  const topScores = scores.slice(0, 10);
+  localStorage.setItem('cyber-snake-local-scores', JSON.stringify(topScores));
+  return topScores;
+}
+
+// API: Fetch local server scores (with localStorage fallback for static deployment)
 async function fetchLeaderboard() {
   try {
     const res = await fetch('/api/scores');
@@ -759,12 +806,9 @@ async function fetchLeaderboard() {
     const data = await res.json();
     renderLeaderboard(data);
   } catch (error) {
-    console.error("API error loading scores:", error);
-    document.getElementById('leaderboard-body').innerHTML = `
-      <tr>
-        <td colspan="4" class="loading-text" style="color: var(--neon-pink);">無法連接伺服器，改為離線模式</td>
-      </tr>
-    `;
+    console.warn("Express server unavailable, running in static/local mode. Loading scores from localStorage.");
+    const localScores = getLocalScores();
+    renderLeaderboard(localScores);
   }
 }
 
@@ -808,7 +852,7 @@ function escapeHTML(str) {
   );
 }
 
-// API: Post high score to Express Backend
+// API: Post high score to Express Backend (with LocalStorage fallback)
 async function submitHighScore() {
   const nameInput = document.getElementById('player-name');
   const name = nameInput.value.trim();
@@ -841,8 +885,10 @@ async function submitHighScore() {
     // Hide input form once successfully uploaded
     document.getElementById('high-score-form').style.display = 'none';
   } catch (error) {
-    console.error("API error submitting score:", error);
-    errorEl.innerText = "❌ 伺服器提交失敗，請檢查網路連線。";
+    console.warn("Express server submit failed, saving score locally to localStorage.");
+    const updatedLocalScores = saveLocalScore(name, score, activeSkin);
+    renderLeaderboard(updatedLocalScores);
+    document.getElementById('high-score-form').style.display = 'none';
   }
 }
 
@@ -998,9 +1044,6 @@ window.addEventListener('resize', resizeCanvas);
 
 // On Page Load Initialization
 window.addEventListener('DOMContentLoaded', () => {
-  // Generate Hamiltonian cycle index mapping
-  generateHamiltonianCycle();
-
   // Set up canvas sizes
   resizeCanvas();
   
@@ -1027,87 +1070,183 @@ document.getElementById('btn-ai').addEventListener('click', () => {
   }
 });
 
-// Precompute a zigzag Hamiltonian Cycle covering all cells for an even grid size
-function generateHamiltonianCycle() {
-  cyclePath = [];
-  cycleIndex = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(-1));
-
-  // Row 0: left to right (0 to GRID_SIZE-1)
-  for (let x = 0; x < GRID_SIZE; x++) {
-    cyclePath.push({ x: x, y: 0 });
-  }
-
-  // Zigzag for rows 1 to GRID_SIZE-1
-  for (let y = 1; y < GRID_SIZE; y++) {
-    if (y % 2 === 1) {
-      // Odd rows: right to left (GRID_SIZE-1 down to 1)
-      for (let x = GRID_SIZE - 1; x >= 1; x--) {
-        cyclePath.push({ x: x, y: y });
-      }
-    } else {
-      // Even rows: left to right (1 to GRID_SIZE-1)
-      for (let x = 1; x < GRID_SIZE; x++) {
-        cyclePath.push({ x: x, y: y });
+// space-maximizing tail-chaser AI Autopilot Solver (Time-Based BFS)
+function isCellBlocked(x, y, t, snakeBody) {
+  for (let i = 0; i < snakeBody.length; i++) {
+    if (snakeBody[i].x === x && snakeBody[i].y === y) {
+      // The segment snakeBody[i] will leave the cell at step: snakeBody.length - i
+      if (t < snakeBody.length - i) {
+        return true;
       }
     }
   }
-
-  // Column 0: bottom to top (GRID_SIZE-1 down to 1)
-  for (let y = GRID_SIZE - 1; y >= 1; y--) {
-    cyclePath.push({ x: 0, y: y });
-  }
-
-  // Populate cycleIndex lookup table
-  cyclePath.forEach((pt, idx) => {
-    cycleIndex[pt.x][pt.y] = idx;
-  });
+  return false;
 }
 
-// Shortcutted Hamiltonian Cycle AI Solver
+function findPathTime(start, target, snakeBody) {
+  const queue = [{ cell: { x: start.x, y: start.y }, t: 0, path: [`${start.x},${start.y}`] }];
+  const visited = new Map();
+  visited.set(`${start.x},${start.y}`, 0);
+
+  while (queue.length > 0) {
+    const curr = queue.shift();
+    const { cell, t, path } = curr;
+
+    if (cell.x === target.x && cell.y === target.y) {
+      const resultPath = [];
+      for (let i = 1; i < path.length; i++) {
+        const [px, py] = path[i].split(',').map(Number);
+        resultPath.push({ x: px, y: py });
+      }
+      return resultPath;
+    }
+
+    const neighbors = getGridNeighbors(cell);
+    for (const n of neighbors) {
+      const key = `${n.x},${n.y}`;
+      if (path.includes(key)) continue;
+
+      const nextT = t + 1;
+
+      // Check if blocked by moving body segments
+      if (isCellBlocked(n.x, n.y, nextT, snakeBody)) {
+        continue;
+      }
+
+      if (visited.has(key) && visited.get(key) <= nextT) continue;
+
+      visited.set(key, nextT);
+      queue.push({
+        cell: n,
+        t: nextT,
+        path: [...path, key]
+      });
+    }
+  }
+  return null;
+}
+
+function getReachableSpaceSize(startCell, virtualSnake) {
+  const queue = [startCell];
+  const visited = new Set();
+  visited.add(`${startCell.x},${startCell.y}`);
+
+  const bodySet = new Set();
+  for (let i = 0; i < virtualSnake.length - 1; i++) {
+    bodySet.add(`${virtualSnake[i].x},${virtualSnake[i].y}`);
+  }
+
+  let count = 0;
+  while (queue.length > 0) {
+    const curr = queue.shift();
+    count++;
+
+    const neighbors = getGridNeighbors(curr);
+    for (const n of neighbors) {
+      const key = `${n.x},${n.y}`;
+      if (visited.has(key) || bodySet.has(key)) continue;
+
+      visited.add(key);
+      queue.push(n);
+    }
+  }
+  return count;
+}
+
+function getSafeDirections(start, snakeBody) {
+  const neighbors = getGridNeighbors(start);
+  const safe = [];
+  for (const n of neighbors) {
+    if (!isCellBlocked(n.x, n.y, 1, snakeBody)) {
+      safe.push({ target: n });
+    }
+  }
+  return safe;
+}
+
 function getAutopilotDirection() {
   const start = snake[0];
   const activeFoods = foods.filter(f => !f.eaten);
   if (activeFoods.length === 0) return null;
 
-  // Sort foods by Manhattan distance to the head
   activeFoods.sort((a, b) => {
     return getMinManhattanDist(a, [start]) - getMinManhattanDist(b, [start]);
   });
   const targetFood = activeFoods[0];
 
-  const H_idx = cycleIndex[start.x][start.y];
-  const tail = snake[snake.length - 1];
-  const T_idx = cycleIndex[tail.x][tail.y];
+  let chosenNextStep = null;
 
-  const N = GRID_SIZE * GRID_SIZE;
+  // 1. Try shortest path to food
+  const pathToFood = findPathTime(start, targetFood, snake);
 
-  // Try to find a shortcut path to food where all cells in the path are safe shortcuts
-  const path = findSmartAutopilotPath(start, targetFood, H_idx, T_idx, N);
-  let bestMove = null;
+  if (pathToFood && pathToFood.length > 0) {
+    // 2. Safety check: simulate virtual snake eating the food
+    let virtualSnake = [...snake];
+    for (let i = 0; i < pathToFood.length; i++) {
+      const step = pathToFood[i];
+      virtualSnake.unshift(step);
+      if (i < pathToFood.length - 1) {
+        virtualSnake.pop();
+      }
+    }
 
-  if (path && path.length > 0) {
-    bestMove = path[0];
-  } else {
-    // Fallback: follow the precomputed Hamiltonian cycle (which is 100% safe)
-    const nextIdx = (H_idx + 1) % N;
-    bestMove = cyclePath[nextIdx];
+    const virtualHead = virtualSnake[0];
+    const virtualTail = virtualSnake[virtualSnake.length - 1];
+
+    // Check if virtual head can reach virtual tail after eating
+    const pathToVirtualTail = findPathTime(virtualHead, virtualTail, virtualSnake);
+
+    if ((pathToVirtualTail && pathToVirtualTail.length > 0) || snake.length < 4) {
+      chosenNextStep = pathToFood[0];
+    }
   }
 
-  if (bestMove) {
-    return getDirBetween(start, bestMove);
+  // 3. If food path is unavailable or unsafe, chase the tail
+  if (!chosenNextStep) {
+    const safeMoves = getSafeDirections(start, snake);
+    const tailChasingMoves = [];
+
+    for (const move of safeMoves) {
+      const virtualSnake = [move.target, ...snake.slice(0, -1)];
+      const canReachTail = findPathTime(virtualSnake[0], virtualSnake[virtualSnake.length - 1], virtualSnake);
+      if (canReachTail || snake.length < 4) {
+        move.spaceSize = getReachableSpaceSize(move.target, virtualSnake);
+        tailChasingMoves.push(move);
+      }
+    }
+
+    if (tailChasingMoves.length > 0) {
+      tailChasingMoves.sort((a, b) => b.spaceSize - a.spaceSize);
+      chosenNextStep = tailChasingMoves[0].target;
+    }
+  }
+
+  // 4. Survival fallback: pick the safe move that maximizes space size
+  if (!chosenNextStep) {
+    const safeMoves = getSafeDirections(start, snake);
+    if (safeMoves.length > 0) {
+      safeMoves.forEach(move => {
+        const virtualSnake = [move.target, ...snake.slice(0, -1)];
+        move.spaceSize = getReachableSpaceSize(move.target, virtualSnake);
+      });
+      safeMoves.sort((a, b) => b.spaceSize - a.spaceSize);
+      chosenNextStep = safeMoves[0].target;
+    }
+  }
+
+  if (chosenNextStep) {
+    return getDirBetween(start, chosenNextStep);
   }
 
   return null;
 }
 
-// Find shortest path to target using BFS, restricting moves to safe shortcuts
-function findSmartAutopilotPath(start, target, H_idx, T_idx, N) {
-  const distToTail = (T_idx - H_idx + N) % N;
-  
+// Find path between two cells using BFS (Legacy, kept for reference or fallback if needed)
+function findPath(start, target, bodySet) {
   const queue = [{ x: start.x, y: start.y }];
   const visited = new Set();
   visited.add(`${start.x},${start.y}`);
-  
+
   const parent = {};
   let found = false;
 
@@ -1123,18 +1262,12 @@ function findSmartAutopilotPath(start, target, H_idx, T_idx, N) {
       const key = `${n.x},${n.y}`;
       if (visited.has(key)) continue;
 
-      const A_idx = cycleIndex[n.x][n.y];
-      const distFromHtoA = (A_idx - H_idx + N) % N;
+      const isTarget = n.x === target.x && n.y === target.y;
+      if (bodySet.has(key) && !isTarget) continue;
 
-      // Safe shortcut condition: shortcut must not skip beyond the tail segment,
-      // and it must strictly move forward in the cycle index (to prevent backward loops).
-      const isDefaultStep = A_idx === (H_idx + 1) % N;
-      const isForward = A_idx > H_idx;
-      if ((isForward && distFromHtoA < distToTail) || isDefaultStep) {
-        visited.add(key);
-        parent[key] = current;
-        queue.push(n);
-      }
+      visited.add(key);
+      parent[key] = current;
+      queue.push(n);
     }
   }
 
@@ -1213,4 +1346,19 @@ function getMinManhattanDist(cell, targetList) {
     }
   }
   return minDist;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    isCellBlocked,
+    findPathTime,
+    getReachableSpaceSize,
+    getSafeDirections,
+    getAutopilotDirection,
+    setSnake: (val) => { snake = val; },
+    getSnake: () => snake,
+    setFoods: (val) => { foods = val; },
+    getFoods: () => foods,
+    setCurrentMode: (val) => { currentMode = val; }
+  };
 }

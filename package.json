@@ -4,7 +4,8 @@
   "description": "A premium, modern neon-themed Snake game with a Node.js backend",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node test/ai.test.js"
   },
   "keywords": [
     "snake",
